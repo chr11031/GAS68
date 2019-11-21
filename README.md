@@ -8,4 +8,4 @@ An open-source assembler for the 68000 for targets such as the Sega Megadrive co
 Well explained, supported examples is a goal of the project.
 
 ## COMMUNITY
-DISCORD communication pending.
+Discord communication pending.
