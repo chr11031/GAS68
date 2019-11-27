@@ -3,8 +3,10 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define NO_MATCH '!'
-#define CHARS_PER_ENTRY 16
+#define INVALID_FLAG '!'
+#define MAX_FLAG_LEN 16
+#define MAX_LINE_SIZE 1024
+#define MAX_BYTES_PER_OPCODE 8
 
 // Help for the Naive user
 void displayOptions()
@@ -18,14 +20,69 @@ void displayOptions()
   return;
 }
 
+// Create a bin file at specified destination
+bool writeBin(char* outFile, char* machineCode, int len)
+{
+  FILE* fp;
+  fp = fopen(outFile, "wb");
+  if(fp == NULL) return false;
+  char * end = machineCode + len;
+  fwrite(&machineCode, sizeof(char), len, fp);
+  fclose(fp);
+  return true;
+}
+
+// Read source file, convert to machine code, return length
+bool parseSource(char* inFile, char** machineCode, int* machineLen)
+{
+  // Open file, count newlines, rewind
+  FILE* fp;
+  fp = fopen(inFile, "r");
+  if(fp == NULL) return false;
+  fseek(fp, 0, SEEK_END);
+  int numLines = 0;
+  while(!feof(fp))
+    {
+      char symbol = fgetc(fp);
+      if(symbol == '\n')
+	{
+	  numLines += 1;
+	}
+    }
+  unsigned long len = (unsigned long)ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  // Create 2D file array
+  char** lineByLine = (char**)malloc(sizeof(char*) * numLines);
+  int i;
+  for(i = 0; i < numLines; i++)
+    {
+      lineByLine[i] = (char*)malloc(sizeof(char) * MAX_LINE_SIZE);
+      fgets(lineByLine[i], MAX_LINE_SIZE, fp);
+   }
+  fclose(fp);
+
+  // Create machine code buffer
+  *machineCode = (char*)malloc(sizeof(char) * numLines * MAX_BYTES_PER_OPCODE);
+  char* machinePtr = *machineCode;
+
+  // Test return statement
+  char results[] = "BlahBlah\n";
+  *machineCode = results;
+  *machineLen = 9;
+  return true;
+}
+
 // Check input ends with pattern
 bool strEndsWith(char* input, char * pattern)
 {
+  // Check NULL inputs
   if(!input || !pattern)
     {
       return false;
     }
 
+  // Find length of strings
   int lenInput = strlen(input);
   int lenPattern = strlen(pattern);
   if(lenPattern > lenInput)
@@ -33,6 +90,7 @@ bool strEndsWith(char* input, char * pattern)
       return false;
     }
 
+  // Compare end with pattern
   int lenDiff = lenInput - lenPattern;
   char* ptrNearEnd = input + lenDiff;
   int match = strcmp(ptrNearEnd, pattern);
@@ -49,13 +107,13 @@ bool strMatchExact(char * a, char * b)
 // Compiler Option
 typedef struct
 {
-  char match[CHARS_PER_ENTRY];
+  char match[MAX_FLAG_LEN];
   bool (*matchFun)(char*, char*);
   char flag;
 } CompilerOption;
 
 // Figure out which CLI options were used
-char determineCase(char *input)
+char determineFlag(char *input)
 {
   // List of options
   CompilerOption options[] = {
@@ -76,7 +134,7 @@ char determineCase(char *input)
     }
 
   // Speciial pattern
-  return NO_MATCH;
+  return INVALID_FLAG;
 }
 
 // Entry Point
@@ -95,7 +153,7 @@ int main(int argc, char **argv)
   int arg;
   for(arg = 1; arg < argc; arg++)
     {
-      char flag = determineCase(argv[arg]);
+      char flag = determineFlag(argv[arg]);
       switch(flag)
 	{
 	case 'h':
@@ -123,7 +181,7 @@ int main(int argc, char **argv)
 	      }
 	  }
 	  break;
-	case NO_MATCH:
+	case INVALID_FLAG:
 	  printf("Unkown flag: %s ABORTING\n", argv[arg]);
 	default:
 	ERROR:
@@ -132,7 +190,32 @@ int main(int argc, char **argv)
 	  break;
 	}
     }
-  printf("Input file is %s --- Output file is %s\n", inputFile, outFile);
 
+  // Ensure an input was given
+  if(inputFile == NULL)
+    {
+      printf("No input file specified. Aborting\n");
+      return 1;
+    }
+  printf("====GAS68_MOTOROLA_68000_ASSEMBLER====\nInput file: %s\nOutput file: %s\n", inputFile, outFile);
+
+  // Read file + Convert
+  int machineLen = 0;
+  char* machineCode;
+  if(!parseSource(inputFile, &machineCode, &machineLen))
+    {
+      printf("Error parsing file: %s\n", inputFile);
+      return 1;
+    }
+
+  // Output to binary file
+  if(!writeBin(outFile, machineCode, machineLen))
+    {
+      printf("Could not write to %s\n", outFile);
+      return 1;
+    }
+
+  // Report completion
+  printf("Asembling done.\n");
   return 0;
 }
